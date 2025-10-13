@@ -1,72 +1,95 @@
-// server.js
-import express from "express";
-import bodyParser from "body-parser";
-import crypto from "crypto";
+// server.js (CommonJS version for Render deployment)
+
+const express = require("express");
+const bodyParser = require("body-parser");
+const crypto = require("crypto");
+const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
-// Middleware to handle raw body (Coinbase Commerce requires this)
-app.use(
-  bodyParser.json({
-    verify: (req, res, buf) => {
-      req.rawBody = buf.toString();
-    },
-  })
-);
+// ✅ Enable CORS for your frontend (Base44 app)
+app.use(cors({ origin: "*" }));
 
-// === ROUTES ===
+// ✅ Parse JSON
+app.use(bodyParser.json());
 
-// 1️⃣ Test route to make sure server works
+// ✅ Basic health check
 app.get("/", (req, res) => {
-  res.send("✅ Hall Inc Server is running!");
+  res.send("✅ Hall Inc Server is running successfully!");
 });
 
-// 2️⃣ Status route for Render health check
-app.get("/status", (req, res) => {
-  res.json({ status: "ok", uptime: process.uptime() });
-});
+// ✅ Simulate user balances (you can connect a real DB later)
+let userBalances = {};
 
-// 3️⃣ Coinbase Commerce webhook handler
-app.post("/webhook", (req, res) => {
-  try {
-    const signature = req.headers["x-cc-webhook-signature"];
-    const secret = process.env.COINBASE_WEBHOOK_SECRET;
+// ✅ Give new users 2000 demo crypto
+app.post("/api/register", (req, res) => {
+  const { userId } = req.body;
+  if (!userId) return res.status(400).json({ error: "userId required" });
 
-    if (!secret) {
-      console.error("❌ Missing COINBASE_WEBHOOK_SECRET environment variable");
-      return res.status(500).send("Server misconfigured");
-    }
-
-    // Verify Coinbase signature
-    const hmac = crypto
-      .createHmac("sha256", secret)
-      .update(req.rawBody)
-      .digest("hex");
-
-    if (hmac !== signature) {
-      console.warn("⚠️ Invalid Coinbase signature detected");
-      return res.status(400).send("Invalid signature");
-    }
-
-    const event = req.body;
-
-    // Log and handle events (like payment confirmations)
-    console.log("💰 Coinbase event:", event.event.type);
-
-    if (event.event.type === "charge:confirmed") {
-      console.log("✅ Payment confirmed!");
-      // TODO: Credit user's balance in your database here
-    }
-
-    res.sendStatus(200);
-  } catch (err) {
-    console.error("Webhook error:", err);
-    res.status(500).send("Error processing webhook");
+  if (!userBalances[userId]) {
+    userBalances[userId] = 2000;
   }
+
+  res.json({
+    message: "User registered successfully",
+    userId,
+    balance: userBalances[userId],
+  });
 });
 
-// === START SERVER ===
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+// ✅ Convert coins to crypto (simple mock conversion)
+app.post("/api/convert", (req, res) => {
+  const { userId, amount, rate } = req.body;
+  if (!userId || !amount || !rate)
+    return res.status(400).json({ error: "userId, amount, and rate required" });
+
+  if (!userBalances[userId])
+    return res.status(400).json({ error: "user not registered" });
+
+  const cryptoAmount = amount * rate;
+  userBalances[userId] += cryptoAmount;
+
+  res.json({
+    message: "Conversion successful",
+    userId,
+    newBalance: userBalances[userId],
+    converted: cryptoAmount,
+  });
 });
+
+// ✅ Mock Coinbase charge (since we can’t call backend commerce without Builder tier)
+app.post("/api/coinbase-charge", (req, res) => {
+  const { userId, amount } = req.body;
+
+  if (!userId || !amount) {
+    return res.status(400).json({ error: "Missing userId or amount" });
+  }
+
+  // Create a fake transaction ID
+  const txId = crypto.randomBytes(8).toString("hex");
+
+  res.json({
+    success: true,
+    message: "Mock Coinbase payment created",
+    txId,
+    amount,
+  });
+});
+
+// ✅ Get user balance
+app.get("/api/balance/:userId", (req, res) => {
+  const userId = req.params.userId;
+  const balance = userBalances[userId] || 0;
+
+  res.json({
+    userId,
+    balance,
+  });
+});
+
+// ✅ Start the server
+app.listen(PORT, () => {
+  console.log(`🚀 Hall Inc Server running on port ${PORT}`);
+});
+
