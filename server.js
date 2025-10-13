@@ -93,4 +93,6 @@ app.listen(PORT, () => {
   console.log(`🚀 Hall Inc Server running on port ${PORT}`);
 });
 
+Replace server.js with working backend (CommonJS)
+
 
