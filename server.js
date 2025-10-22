@@ -2,8 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const fetch = (...args) => import fetch from "node-fetch";
-.then(({default: fetch}) => fetch(...args));
+const axios = require("axios"); // Use axios instead of fetch
 
 const app = express();
 app.use(cors());
@@ -23,24 +22,14 @@ app.get("/", (req, res) => {
 // ✅ Ping CoinGate (tests your API key)
 app.get("/test-coingate", async (req, res) => {
   try {
-    const response = await fetch(`${COINGATE_BASE_URL}/orders`, {
+    const response = await axios.get(`${COINGATE_BASE_URL}/orders`, {
       headers: {
         "Authorization": `Token ${COINGATE_API_KEY}`,
         "Content-Type": "application/json",
       },
     });
 
-    // Try to parse JSON safely
-    const text = await response.text();
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      console.error("Non-JSON response:", text);
-      return res.status(500).json({ ok: false, error: "Invalid JSON response", raw: text });
-    }
-
-    res.json({ ok: true, data });
+    res.json({ ok: true, data: response.data });
   } catch (err) {
     console.error("Error connecting to CoinGate:", err);
     res.status(500).json({ ok: false, error: err.message });
