@@ -2,7 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const fetch = (...args) => import fetch from "node-fetch";
+.then(({default: fetch}) => fetch(...args));
 
 const app = express();
 app.use(cors());
