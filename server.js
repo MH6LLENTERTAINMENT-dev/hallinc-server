@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const axios = require("axios"); // Use axios instead of fetch
+const axios = require("axios"); // ✅ FIX: Use axios instead of node-fetch
 
 const app = express();
 app.use(cors());
