@@ -1,9 +1,7 @@
-import express from "express";
-import cors from "cors";
-import bodyParser from "body-parser";
-import dotenv from "dotenv";
-
-dotenv.config();
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+require("dotenv").config();
 
 const app = express();
 app.use(cors());
@@ -16,9 +14,10 @@ app.get("/", (req, res) => {
   res.json({ message: "HallInc Server is running 🚀" });
 });
 
-// Example external API test
+// Example external API test - FIXED
 app.get("/ping", async (req, res) => {
   try {
+    // Node.js 18+ has built-in fetch - no import needed!
     const response = await fetch("https://api.github.com");
     const data = await response.json();
     res.json({ ok: true, data });
@@ -28,8 +27,6 @@ app.get("/ping", async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
-
 
 
 
