@@ -1,14 +1,24 @@
 app.post("/api/redeem/giftcard", async (req, res) => {
   try {
-    const { userEmail, giftCardType, coinAmount, giftCardValue } = req.body;
+    const { userId, userEmail, giftCardType, coinAmount, giftCardValue } = req.body;
+    
+    // FIX: userId is now optional
+    const actualUserId = userId || `user_${Date.now()}`;
+    
+    if (!userEmail || !giftCardType || !coinAmount) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing userEmail, coinAmount, or giftCardType" 
+      });
+    }
     
     // Your profit calculation
-    const yourCost = giftCardValue * 0.90; // Buy at 10% discount
-    const yourProfit = giftCardValue * 0.10; // Keep 10% profit
+    const yourCost = giftCardValue * 0.90;
+    const yourProfit = giftCardValue * 0.10;
     
-    // Simulate processing (you'll manually fulfill)
     const giftCard = {
       id: 'manual_' + Date.now(),
+      userId: actualUserId,
       userEmail: userEmail,
       giftCardType: giftCardType,
       coinAmount: coinAmount,
