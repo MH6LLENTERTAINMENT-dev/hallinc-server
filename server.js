@@ -9,15 +9,14 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 
-// Example route to test if server works
+// Test route
 app.get("/", (req, res) => {
-  res.json({ message: "HallInc Server is running 🚀" });
+  res.json({ message: "🎉 HallInc Server is FINALLY working!" });
 });
 
-// Example external API test - FIXED
+// API test using native fetch (Node.js 18+)
 app.get("/ping", async (req, res) => {
   try {
-    // Node.js 18+ has built-in fetch - no import needed!
     const response = await fetch("https://api.github.com");
     const data = await response.json();
     res.json({ ok: true, data });
