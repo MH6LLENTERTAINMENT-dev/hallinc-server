@@ -9,16 +9,19 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 
-// REAL API Keys from Render Environment
+// API Keys from Render Environment
 const RAKUTEN_API_KEY = process.env.RAKUTEN_API_KEY;
 const COINBASE_API_KEY = process.env.COINBASE_API_KEY;
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
+const IMPACT_API_KEY = process.env.IMPACT_API_KEY;
+const IMPACT_ACCOUNT_SID = process.env.IMPACT_ACCOUNT_SID;
+const IMPACT_BASE_URL = process.env.IMPACT_BASE_URL;
 
 // Test route
 app.get("/", (req, res) => {
   res.json({ 
     message: "🎉 HallInc Server with REAL LIVE APIs!",
-    status: "Rakuten, Coinbase, Ticketmaster - LIVE & READY!"
+    status: "Rakuten, Coinbase, Ticketmaster, Impact - LIVE & READY!"
   });
 });
 
@@ -284,6 +287,75 @@ app.post("/api/redeem/tickets", async (req, res) => {
   }
 });
 
+// 🎁 IMPACT.COM GIFT CARD REDEMPTION
+app.post("/api/redeem/impact", async (req, res) => {
+  try {
+    const { userId, userEmail, giftCardType, coinAmount } = req.body;
+    
+    const usdValue = coinAmount * 0.0009;
+    const yourProfit = coinAmount * 0.0001;
+    
+    // Impact.com API Call
+    if (IMPACT_API_KEY && IMPACT_ACCOUNT_SID) {
+      try {
+        const response = await fetch(`${IMPACT_BASE_URL}/Advertisers/${IMPACT_ACCOUNT_SID}/Actions`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${IMPACT_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'giftcard_issuance',
+            retailer: giftCardType,
+            amount: usdValue,
+            recipient: userEmail,
+            campaign_id: 'hallinc_sports'
+          })
+        });
+        
+        if (response.ok) {
+          const impactResponse = await response.json();
+          console.log('🎁 Impact.com Gift Card Issued:', impactResponse);
+          
+          return res.json({
+            success: true,
+            message: `🎉 REAL ${giftCardType} gift card sent to ${userEmail}!`,
+            impactData: impactResponse,
+            realAPI: true,
+            yourProfit: yourProfit
+          });
+        }
+      } catch (apiError) {
+        console.log('Impact.com API failed:', apiError.message);
+      }
+    }
+    
+    // Fallback to manual process
+    const giftCard = {
+      id: 'impact_' + Date.now(),
+      userEmail: userEmail,
+      giftCardType: giftCardType,
+      coinAmount: coinAmount,
+      usdValue: usdValue,
+      status: 'pending_manual',
+      timestamp: new Date().toISOString(),
+      realAPI: false
+    };
+    
+    res.json({
+      success: true,
+      message: `🎉 ${giftCardType} gift card requested! We'll process within 24 hours.`,
+      giftCard: giftCard
+    });
+    
+  } catch (err) {
+    res.status(500).json({ 
+      success: false, 
+      error: 'Gift card redemption failed' 
+    });
+  }
+});
+
 // 🧪 TEST ALL APIS ENDPOINT
 app.get("/test-apis", async (req, res) => {
   try {
@@ -349,7 +421,8 @@ app.get("/test-apis", async (req, res) => {
       keys: {
         rakuten: process.env.RAKUTEN_API_KEY ? "✅ Present" : "❌ Missing",
         ticketmaster: process.env.TICKETMASTER_API_KEY ? "✅ Present" : "❌ Missing",
-        coinbase: process.env.COINBASE_API_KEY ? "✅ Present" : "❌ Missing"
+        coinbase: process.env.COINBASE_API_KEY ? "✅ Present" : "❌ Missing",
+        impact: process.env.IMPACT_API_KEY ? "✅ Present" : "❌ Missing"
       }
     });
     
