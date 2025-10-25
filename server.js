@@ -36,6 +36,27 @@ app.get("/ping", async (req, res) => {
   }
 });
 
+// 🎯 IMPACT.COM API TEST ENDPOINT - ADDED HERE
+app.get("/test/impact", async (req, res) => {
+  try {
+    const response = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Accounts', {
+      headers: {
+        'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
+        'Accept': 'application/json'
+      }
+    });
+    
+    res.json({
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      data: response.ok ? await response.json() : null
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // 🎁 REAL RAKUTEN GIFT CARD REDEMPTION
 app.post("/api/redeem/giftcard", async (req, res) => {
   try {
@@ -414,6 +435,26 @@ app.get("/test-apis", async (req, res) => {
       };
     }
     
+    // 🎯 TEST IMPACT.COM API - ADDED HERE
+    try {
+      const impactResponse = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Accounts', {
+        headers: {
+          'Authorization': `Basic ${Buffer.from(process.env.IMPACT_ACCOUNT_SID + ':' + process.env.IMPACT_API_KEY).toString('base64')}`,
+          'Accept': 'application/json'
+        }
+      });
+      results.impact = {
+        status: impactResponse.status,
+        statusText: impactResponse.statusText,
+        ok: impactResponse.ok
+      };
+    } catch (impactError) {
+      results.impact = {
+        error: impactError.message,
+        ok: false
+      };
+    }
+    
     console.log('🧪 API Test Results:', results);
     res.json({
       message: "API Test Results",
@@ -422,7 +463,8 @@ app.get("/test-apis", async (req, res) => {
         rakuten: process.env.RAKUTEN_API_KEY ? "✅ Present" : "❌ Missing",
         ticketmaster: process.env.TICKETMASTER_API_KEY ? "✅ Present" : "❌ Missing",
         coinbase: process.env.COINBASE_API_KEY ? "✅ Present" : "❌ Missing",
-        impact: process.env.IMPACT_API_KEY ? "✅ Present" : "❌ Missing"
+        impact: process.env.IMPACT_API_KEY ? "✅ Present" : "❌ Missing",
+        impact_sid: process.env.IMPACT_ACCOUNT_SID ? "✅ Present" : "❌ Missing"
       }
     });
     
