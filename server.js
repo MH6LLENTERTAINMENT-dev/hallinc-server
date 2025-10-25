@@ -15,7 +15,6 @@ const COINBASE_API_KEY = process.env.COINBASE_API_KEY;
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
 const IMPACT_API_KEY = process.env.IMPACT_API_KEY;
 const IMPACT_ACCOUNT_SID = process.env.IMPACT_ACCOUNT_SID;
-const IMPACT_BASE_URL = process.env.IMPACT_BASE_URL;
 
 // Test route
 app.get("/", (req, res) => {
@@ -36,7 +35,7 @@ app.get("/ping", async (req, res) => {
   }
 });
 
-// 🎯 IMPACT.COM API TEST ENDPOINT - ADDED HERE
+// 🎯 IMPACT.COM API TEST ENDPOINT - FIXED
 app.get("/test/impact", async (req, res) => {
   try {
     const response = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Accounts', {
@@ -45,6 +44,60 @@ app.get("/test/impact", async (req, res) => {
         'Accept': 'application/json'
       }
     });
+    
+    res.json({
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      data: response.ok ? await response.json() : null
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// 🎯 RAKUTEN API TEST ENDPOINT - FIXED
+app.get("/test/rakuten", async (req, res) => {
+  try {
+    const response = await fetch('https://api.rakutenadvertising.com/affiliate/merchants', {
+      headers: {
+        'Authorization': `Bearer ${RAKUTEN_API_KEY}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    res.json({
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      data: response.ok ? await response.json() : null
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// 🎯 COINBASE API TEST ENDPOINT
+app.get("/test/coinbase", async (req, res) => {
+  try {
+    const response = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
+    
+    res.json({
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok,
+      data: response.ok ? await response.json() : null
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// 🎯 TICKETMASTER API TEST ENDPOINT
+app.get("/test/ticketmaster", async (req, res) => {
+  try {
+    const response = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`);
     
     res.json({
       status: response.status,
@@ -319,10 +372,10 @@ app.post("/api/redeem/impact", async (req, res) => {
     // Impact.com API Call
     if (IMPACT_API_KEY && IMPACT_ACCOUNT_SID) {
       try {
-        const response = await fetch(`${IMPACT_BASE_URL}/Advertisers/${IMPACT_ACCOUNT_SID}/Actions`, {
+        const response = await fetch(`https://api.impact.com/Mediapartners/${IMPACT_ACCOUNT_SID}/Actions`, {
           method: 'POST',
           headers: {
-            'Authorization': `Basic ${IMPACT_API_KEY}`,
+            'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -377,19 +430,19 @@ app.post("/api/redeem/impact", async (req, res) => {
   }
 });
 
-// 🧪 TEST ALL APIS ENDPOINT
+// 🧪 TEST ALL APIS ENDPOINT - UPDATED
 app.get("/test-apis", async (req, res) => {
   try {
     console.log('🧪 Testing APIs...');
     
     const results = {};
     
-    // Test Rakuten API
+    // Test Rakuten API - FIXED
     try {
-      const rakutenResponse = await fetch('https://api.rakuten.com/v1/auth/test', {
-        method: 'GET',
+      const rakutenResponse = await fetch('https://api.rakutenadvertising.com/affiliate/merchants', {
         headers: {
-          'Authorization': `Bearer ${process.env.RAKUTEN_API_KEY}`,
+          'Authorization': `Bearer ${RAKUTEN_API_KEY}`,
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         }
       });
@@ -407,7 +460,7 @@ app.get("/test-apis", async (req, res) => {
     
     // Test Ticketmaster API
     try {
-      const tmResponse = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${process.env.TICKETMASTER_API_KEY}&size=1`);
+      const tmResponse = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`);
       results.ticketmaster = {
         status: tmResponse.status,
         statusText: tmResponse.statusText,
@@ -420,7 +473,7 @@ app.get("/test-apis", async (req, res) => {
       };
     }
     
-    // Test Coinbase API (price check)
+    // Test Coinbase API
     try {
       const cbResponse = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
       results.coinbase = {
@@ -435,11 +488,11 @@ app.get("/test-apis", async (req, res) => {
       };
     }
     
-    // 🎯 TEST IMPACT.COM API - ADDED HERE
+    // Test Impact.com API - FIXED
     try {
       const impactResponse = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Accounts', {
         headers: {
-          'Authorization': `Basic ${Buffer.from(process.env.IMPACT_ACCOUNT_SID + ':' + process.env.IMPACT_API_KEY).toString('base64')}`,
+          'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
           'Accept': 'application/json'
         }
       });
@@ -460,11 +513,11 @@ app.get("/test-apis", async (req, res) => {
       message: "API Test Results",
       results: results,
       keys: {
-        rakuten: process.env.RAKUTEN_API_KEY ? "✅ Present" : "❌ Missing",
-        ticketmaster: process.env.TICKETMASTER_API_KEY ? "✅ Present" : "❌ Missing",
-        coinbase: process.env.COINBASE_API_KEY ? "✅ Present" : "❌ Missing",
-        impact: process.env.IMPACT_API_KEY ? "✅ Present" : "❌ Missing",
-        impact_sid: process.env.IMPACT_ACCOUNT_SID ? "✅ Present" : "❌ Missing"
+        rakuten: RAKUTEN_API_KEY ? "✅ Present" : "❌ Missing",
+        ticketmaster: TICKETMASTER_API_KEY ? "✅ Present" : "❌ Missing",
+        coinbase: COINBASE_API_KEY ? "✅ Present" : "❌ Missing",
+        impact: IMPACT_API_KEY ? "✅ Present" : "❌ Missing",
+        impact_sid: IMPACT_ACCOUNT_SID ? "✅ Present" : "❌ Missing"
       }
     });
     
