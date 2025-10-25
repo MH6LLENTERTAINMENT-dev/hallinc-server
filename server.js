@@ -110,6 +110,161 @@ app.get("/test/ticketmaster", async (req, res) => {
   }
 });
 
+// =============================================
+// 🆕 NEW ENDPOINTS - ADMOB REWARDS & COINBASE PURCHASES
+// =============================================
+
+// 💰 ADD COINS ENDPOINT (for ad rewards AND purchases)
+app.post("/api/add-coins", async (req, res) => {
+  try {
+    const { userId, coins, source = 'unknown' } = req.body;
+    
+    if (!userId || !coins) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing userId or coins" 
+      });
+    }
+    
+    // TODO: Update user's coin balance in your database
+    // For now, return success with simulated balance
+    const newBalance = Math.floor(Math.random() * 10000) + 1000;
+    
+    console.log(`💰 Added ${coins} coins to user ${userId} from ${source}`);
+    
+    res.json({
+      success: true,
+      coinsEarned: coins,
+      newBalance: newBalance,
+      message: `Successfully added ${coins} coins!`
+    });
+    
+  } catch (err) {
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to add coins' 
+    });
+  }
+});
+
+// ₿ COINBASE CRYPTO PURCHASE ENDPOINT
+app.post("/coinbase-charge", async (req, res) => {
+  try {
+    const { userId, amount, currency = 'USD', cryptoType = 'BTC' } = req.body;
+    
+    if (!userId || !amount) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Missing userId or amount" 
+      });
+    }
+    
+    // Convert USD to coins (adjust rate as needed)
+    const coinsEarned = amount * 1000; // $1 = 1000 coins
+    
+    // REAL Coinbase Commerce API Call
+    if (COINBASE_API_KEY) {
+      try {
+        const chargeResponse = await fetch('https://api.commerce.coinbase.com/charges', {
+          method: 'POST',
+          headers: {
+            'X-CC-Api-Key': COINBASE_API_KEY,
+            'X-CC-Version': '2018-03-22',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: `${coinsEarned} HallInc Coins`,
+            description: `Purchase ${coinsEarned} coins for HallInc Sports Arena`,
+            pricing_type: 'fixed_price',
+            local_price: {
+              amount: amount.toString(),
+              currency: currency
+            },
+            metadata: {
+              userId: userId,
+              coinsEarned: coinsEarned,
+              cryptoType: cryptoType
+            },
+            redirect_url: 'https://hall-inc-sports-arena-942ab85a.base44.app/success',
+            cancel_url: 'https://hall-inc-sports-arena-942ab85a.base44.app/cancel'
+          })
+        });
+        
+        if (chargeResponse.ok) {
+          const chargeData = await chargeResponse.json();
+          
+          console.log('₿ Coinbase Charge Created:', chargeData);
+          
+          return res.json({
+            success: true,
+            message: 'Coinbase payment initiated',
+            charge: chargeData.data,
+            coinsEarned: coinsEarned,
+            paymentUrl: chargeData.data.hosted_url
+          });
+        }
+      } catch (apiError) {
+        console.log('Coinbase Commerce API failed:', apiError.message);
+      }
+    }
+    
+    // Fallback: Simulate payment
+    const simulatedCharge = {
+      id: 'sim_charge_' + Math.random().toString(36).substr(2, 9),
+      hosted_url: 'https://hall-inc-sports-arena-942ab85a.base44.app/simulated-payment',
+      amount: amount,
+      currency: currency,
+      coinsEarned: coinsEarned,
+      status: 'created',
+      realAPI: false
+    };
+    
+    res.json({
+      success: true,
+      message: `Simulated payment for ${coinsEarned} coins`,
+      charge: simulatedCharge,
+      coinsEarned: coinsEarned,
+      paymentUrl: simulatedCharge.hosted_url
+    });
+    
+  } catch (err) {
+    console.error('Coinbase charge error:', err);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Payment processing failed' 
+    });
+  }
+});
+
+// ✅ COINBASE WEBHOOK (for payment confirmation)
+app.post("/coinbase-webhook", async (req, res) => {
+  try {
+    const event = req.body;
+    console.log('₿ Coinbase Webhook Received:', event);
+    
+    // Handle different event types
+    if (event.type === 'charge:confirmed') {
+      const charge = event.data;
+      const userId = charge.metadata.userId;
+      const coinsEarned = charge.metadata.coinsEarned;
+      
+      // Add coins to user's account
+      console.log(`🎉 Payment confirmed! Adding ${coinsEarned} coins to user ${userId}`);
+      
+      // TODO: Update user's coin balance in database
+    }
+    
+    res.json({ received: true });
+  } catch (err) {
+    console.error('Webhook error:', err);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+// =============================================
+// EXISTING REWARD REDEMPTION ENDPOINTS
+// =============================================
+
 // 🎁 REAL RAKUTEN GIFT CARD REDEMPTION
 app.post("/api/redeem/giftcard", async (req, res) => {
   try {
