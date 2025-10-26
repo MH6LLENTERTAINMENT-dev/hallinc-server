@@ -56,6 +56,70 @@ app.get("/test/impact", async (req, res) => {
   }
 });
 
+// 🆕 IMPACT DEBUG ENDPOINT
+app.get("/test/impact-debug", async (req, res) => {
+  try {
+    // Test different Impact endpoints
+    const endpoints = [
+      '/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Accounts',
+      '/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Profile', 
+      '/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Campaigns',
+      '/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1'
+    ];
+    
+    const results = [];
+    
+    for (let endpoint of endpoints) {
+      try {
+        const response = await fetch('https://api.impact.com' + endpoint, {
+          headers: {
+            'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
+            'Accept': 'application/json'
+          }
+        });
+        results.push({
+          endpoint: endpoint,
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+      } catch (error) {
+        results.push({
+          endpoint: endpoint,
+          error: error.message
+        });
+      }
+    }
+    
+    res.json({ 
+      message: "Impact.com Endpoint Debug",
+      results: results 
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// 🆕 IMPACT BEARER TOKEN TEST
+app.get("/test/impact-bearer", async (req, res) => {
+  try {
+    const response = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1/Accounts', {
+      headers: {
+        'Authorization': `Bearer ${IMPACT_API_KEY}`,
+        'Accept': 'application/json'
+      }
+    });
+    
+    res.json({
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // 🎯 RAKUTEN API TEST ENDPOINT - FIXED
 app.get("/test/rakuten", async (req, res) => {
   try {
