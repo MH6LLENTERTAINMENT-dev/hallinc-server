@@ -308,22 +308,21 @@ app.post("/api/redeem/lasso", async (req, res) => {
       coinAmount: coinAmount,
       usdValue: usdValue,
       status: 'ready',
-      timestamp: new Date().toISOString(),
-      instructions: `Issue ${brand} gift card via Lasso Marketplace`
+      timestamp: new Date().toISOString()
     };
     
     console.log('🎁 Lasso Marketplace Reward:', reward);
     
     res.json({
       success: true,
-      message: `🎉 $${usdValue} ${brand} reward ready for processing!`,
+      message: `🎉 $${usdValue} ${brand} gift card ready!`,
       reward: reward
     });
     
   } catch (err) {
     res.status(500).json({ 
       success: false, 
-      error: 'Lasso reward processing failed' 
+      error: 'Lasso reward failed' 
     });
   }
 });
