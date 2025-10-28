@@ -68,12 +68,12 @@ app.get("/test/coinbase", async (req, res) => {
   }
 });
 
-// Impact.com Test
+// Impact.com Test - FIXED BASIC AUTH
 app.get("/test/impact", async (req, res) => {
   try {
     const response = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1', {
       headers: {
-        'Authorization': `Bearer ${IMPACT_API_KEY}`,
+        'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
         'Accept': 'application/json'
       }
     });
@@ -380,11 +380,11 @@ app.get("/test-apis", async (req, res) => {
       results.coinbase = { error: cbError.message, ok: false };
     }
     
-    // Test Impact.com
+    // Test Impact.com - FIXED BASIC AUTH
     try {
       const impactResponse = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1', {
         headers: {
-          'Authorization': `Bearer ${IMPACT_API_KEY}`,
+          'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
           'Accept': 'application/json'
         }
       });
