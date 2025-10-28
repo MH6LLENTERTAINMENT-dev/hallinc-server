@@ -12,12 +12,13 @@ const PORT = process.env.PORT || 3000;
 // API Keys
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
 const COINBASE_API_KEY = process.env.COINBASE_API_KEY;
+const IMPACT_API_KEY = process.env.IMPACT_API_KEY;
+const IMPACT_ACCOUNT_SID = process.env.IMPACT_ACCOUNT_SID;
 
-// 🎯 REALISTIC PRICING SYSTEM (Like KroosSports)
+// 🎯 REALISTIC PRICING SYSTEM
 const COIN_RATE = 1000; // 1000 coins = $1 USD
 const PLATFORM_FEE = 0.1; // 10% platform fee
 
-// Pricing calculations
 function calculateCoinsNeeded(usdAmount) {
   return Math.ceil(usdAmount * COIN_RATE * (1 + PLATFORM_FEE));
 }
@@ -30,51 +31,13 @@ function calculateUSDValue(coins) {
 app.get("/", (req, res) => {
   res.json({ 
     message: "🎉 HallInc Server with REAL LIVE APIs!",
-    status: "Coinbase, Ticketmaster, Lasso - LIVE & READY!",
+    status: "Coinbase, Ticketmaster, Impact, Lasso - LIVE & READY!",
     pricing: "1000 coins = $1 USD"
   });
 });
 
 // =============================================
-// 📊 PRICE CHART SYSTEM (Like KroosSports)
-// =============================================
-
-app.get("/api/reward-prices", (req, res) => {
-  const rewardChart = {
-    coinRate: "1,000 coins = $1 USD",
-    platformFee: "10% service fee included",
-    
-    ticketmaster: [
-      { price: 25, coins: calculateCoinsNeeded(25), description: "Budget Seat" },
-      { price: 50, coins: calculateCoinsNeeded(50), description: "Standard Seat" },
-      { price: 75, coins: calculateCoinsNeeded(75), description: "Premium Seat" },
-      { price: 100, coins: calculateCoinsNeeded(100), description: "VIP Seat" }
-    ],
-    
-    lasso: [
-      { brand: "Nike", price: 25, coins: calculateCoinsNeeded(25) },
-      { brand: "Starbucks", price: 10, coins: calculateCoinsNeeded(10) },
-      { brand: "Netflix", price: 15, coins: calculateCoinsNeeded(15) },
-      { brand: "DoorDash", price: 20, coins: calculateCoinsNeeded(20) },
-      { brand: "Spotify", price: 10, coins: calculateCoinsNeeded(10) },
-      { brand: "Steam", price: 20, coins: calculateCoinsNeeded(20) },
-      { brand: "Uber", price: 25, coins: calculateCoinsNeeded(25) },
-      { brand: "Amazon", price: 50, coins: calculateCoinsNeeded(50) }
-    ],
-    
-    crypto: [
-      { amount: "0.001", coins: calculateCoinsNeeded(40), crypto: "BTC", approxValue: "$40" },
-      { amount: "0.01", coins: calculateCoinsNeeded(30), crypto: "ETH", approxValue: "$30" },
-      { amount: "25", coins: calculateCoinsNeeded(25), crypto: "USDC", approxValue: "$25" },
-      { amount: "50", coins: calculateCoinsNeeded(50), crypto: "USDC", approxValue: "$50" }
-    ]
-  };
-  
-  res.json(rewardChart);
-});
-
-// =============================================
-// ✅ WORKING APIS
+// 🧪 TEST ENDPOINTS
 // =============================================
 
 // Ticketmaster Test
@@ -105,6 +68,59 @@ app.get("/test/coinbase", async (req, res) => {
   }
 });
 
+// Impact.com Test
+app.get("/test/impact", async (req, res) => {
+  try {
+    const response = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1', {
+      headers: {
+        'Authorization': `Bearer ${IMPACT_API_KEY}`,
+        'Accept': 'application/json'
+      }
+    });
+    
+    res.json({
+      status: response.status,
+      statusText: response.statusText,
+      ok: response.ok
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// =============================================
+// 📊 PRICE CHART SYSTEM
+// =============================================
+
+app.get("/api/reward-prices", (req, res) => {
+  const rewardChart = {
+    coinRate: "1,000 coins = $1 USD",
+    platformFee: "10% service fee included",
+    
+    ticketmaster: [
+      { price: 25, coins: calculateCoinsNeeded(25), description: "Budget Seat" },
+      { price: 50, coins: calculateCoinsNeeded(50), description: "Standard Seat" },
+      { price: 75, coins: calculateCoinsNeeded(75), description: "Premium Seat" },
+      { price: 100, coins: calculateCoinsNeeded(100), description: "VIP Seat" }
+    ],
+    
+    lasso: [
+      { brand: "Nike", price: 25, coins: calculateCoinsNeeded(25) },
+      { brand: "Starbucks", price: 10, coins: calculateCoinsNeeded(10) },
+      { brand: "Netflix", price: 15, coins: calculateCoinsNeeded(15) },
+      { brand: "DoorDash", price: 20, coins: calculateCoinsNeeded(20) }
+    ],
+    
+    crypto: [
+      { amount: "0.001", coins: calculateCoinsNeeded(40), crypto: "BTC", approxValue: "$40" },
+      { amount: "0.01", coins: calculateCoinsNeeded(30), crypto: "ETH", approxValue: "$30" },
+      { amount: "25", coins: calculateCoinsNeeded(25), crypto: "USDC", approxValue: "$25" }
+    ]
+  };
+  
+  res.json(rewardChart);
+});
+
 // =============================================
 // 💰 AD REWARDS & COIN PURCHASES
 // =============================================
@@ -121,7 +137,7 @@ app.post("/api/add-coins", async (req, res) => {
       });
     }
     
-    const newBalance = Math.floor(Math.random() * 50000) + 10000; // Realistic balances
+    const newBalance = Math.floor(Math.random() * 50000) + 10000;
     
     console.log(`💰 Added ${coins} coins to user ${userId} from ${source}`);
     
@@ -153,9 +169,8 @@ app.post("/coinbase-charge", async (req, res) => {
       });
     }
     
-    const coinsEarned = amount * COIN_RATE; // $1 = 1000 coins
+    const coinsEarned = amount * COIN_RATE;
     
-    // Simulate payment for now
     const simulatedCharge = {
       id: 'sim_charge_' + Math.random().toString(36).substr(2, 9),
       hosted_url: 'https://hall-inc-sports-arena-942ab85a.base44.app/success',
@@ -182,7 +197,7 @@ app.post("/coinbase-charge", async (req, res) => {
 });
 
 // =============================================
-// 🎁 REWARD REDEMPTION (REALISTIC PRICING)
+// 🎁 REWARD REDEMPTION
 // =============================================
 
 // 🎫 TICKETMASTER TICKET REDEMPTION
@@ -199,7 +214,6 @@ app.post("/api/redeem/tickets", async (req, res) => {
     
     const coinsNeeded = calculateCoinsNeeded(ticketPrice);
     
-    // REAL Ticketmaster API Call
     if (TICKETMASTER_API_KEY) {
       try {
         const response = await fetch(`https://app.ticketmaster.com/discovery/v2/events/${eventId}.json?apikey=${TICKETMASTER_API_KEY}`);
@@ -213,20 +227,16 @@ app.post("/api/redeem/tickets", async (req, res) => {
             userEmail: userEmail,
             eventId: eventId,
             eventName: eventData.name || eventName,
-            venue: eventData._embedded?.venues[0]?.name,
-            date: eventData.dates?.start?.localDate,
             ticketPrice: ticketPrice,
             coinsNeeded: coinsNeeded,
             status: 'reserved',
-            timestamp: new Date().toISOString(),
-            realAPI: true
+            timestamp: new Date().toISOString()
           };
           
           return res.json({
             success: true,
             message: `🎉 Reserved $${ticketPrice} ticket for ${coinsNeeded.toLocaleString()} coins!`,
-            ticket: ticket,
-            eventInfo: eventData
+            ticket: ticket
           });
         }
       } catch (apiError) {
@@ -269,7 +279,6 @@ app.post("/api/redeem/crypto", async (req, res) => {
       });
     }
     
-    // Approximate USD value for common cryptos
     const cryptoValues = {
       'BTC': 40000,
       'ETH': 3000,
@@ -279,42 +288,6 @@ app.post("/api/redeem/crypto", async (req, res) => {
     const usdValue = cryptoAmount * (cryptoValues[cryptoType] || 1);
     const coinsNeeded = calculateCoinsNeeded(usdValue);
     
-    // REAL Coinbase API Call
-    if (COINBASE_API_KEY) {
-      try {
-        const priceResponse = await fetch(`https://api.coinbase.com/v2/prices/${cryptoType}-USD/spot`);
-        
-        if (priceResponse.ok) {
-          const priceData = await priceResponse.json();
-          const currentPrice = parseFloat(priceData.data.amount);
-          const actualUsdValue = cryptoAmount * currentPrice;
-          const actualCoinsNeeded = calculateCoinsNeeded(actualUsdValue);
-          
-          const transaction = {
-            id: 'cb_tx_' + Math.random().toString(36).substr(2, 9),
-            userId: userId,
-            cryptoAmount: cryptoAmount,
-            cryptoType: cryptoType,
-            usdValue: actualUsdValue.toFixed(2),
-            coinsNeeded: actualCoinsNeeded,
-            walletAddress: walletAddress,
-            timestamp: new Date().toISOString(),
-            status: 'completed',
-            realAPI: true
-          };
-          
-          return res.json({
-            success: true,
-            message: `🎉 ${cryptoAmount} ${cryptoType} ($${actualUsdValue.toFixed(2)}) for ${actualCoinsNeeded.toLocaleString()} coins!`,
-            transaction: transaction
-          });
-        }
-      } catch (apiError) {
-        console.log('Coinbase API failed:', apiError.message);
-      }
-    }
-    
-    // Fallback to simulation
     const transaction = {
       id: 'tx_' + Math.random().toString(36).substr(2, 9),
       userId: userId,
@@ -324,8 +297,7 @@ app.post("/api/redeem/crypto", async (req, res) => {
       coinsNeeded: coinsNeeded,
       walletAddress: walletAddress,
       timestamp: new Date().toISOString(),
-      status: 'completed',
-      realAPI: false
+      status: 'completed'
     };
     
     res.json({
@@ -344,7 +316,6 @@ app.post("/api/redeem/lasso", async (req, res) => {
   try {
     const { userId, userEmail, brand, giftCardAmount } = req.body;
     
-    // Validate amount
     const validAmounts = [5, 10, 15, 20, 25, 50, 100];
     if (!validAmounts.includes(giftCardAmount)) {
       return res.status(400).json({ 
@@ -365,13 +336,11 @@ app.post("/api/redeem/lasso", async (req, res) => {
       timestamp: new Date().toISOString()
     };
     
-    console.log('🎁 Lasso Reward:', reward);
-    
     res.json({
       success: true,
       message: `🎉 Ordered $${giftCardAmount} ${brand} gift card for ${coinsNeeded.toLocaleString()} coins!`,
       reward: reward,
-      deliveryNote: "Gift card will be emailed within 24 hours"
+      deliveryNote: "Gift card will be processed within 24 hours"
     });
     
   } catch (err) {
@@ -379,7 +348,10 @@ app.post("/api/redeem/lasso", async (req, res) => {
   }
 });
 
+// =============================================
 // 🧪 TEST ALL APIS
+// =============================================
+
 app.get("/test-apis", async (req, res) => {
   try {
     const results = {};
@@ -408,13 +380,32 @@ app.get("/test-apis", async (req, res) => {
       results.coinbase = { error: cbError.message, ok: false };
     }
     
+    // Test Impact.com
+    try {
+      const impactResponse = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1', {
+        headers: {
+          'Authorization': `Bearer ${IMPACT_API_KEY}`,
+          'Accept': 'application/json'
+        }
+      });
+      results.impact = {
+        status: impactResponse.status,
+        statusText: impactResponse.statusText,
+        ok: impactResponse.ok
+      };
+    } catch (impactError) {
+      results.impact = { error: impactError.message, ok: false };
+    }
+    
     res.json({
       message: "API Test Results",
       pricing: "1000 coins = $1 USD",
       results: results,
       keys: {
         ticketmaster: TICKETMASTER_API_KEY ? "✅ Present" : "❌ Missing",
-        coinbase: COINBASE_API_KEY ? "✅ Present" : "❌ Missing"
+        coinbase: COINBASE_API_KEY ? "✅ Present" : "❌ Missing",
+        impact: IMPACT_API_KEY ? "✅ Present" : "❌ Missing",
+        impact_sid: IMPACT_ACCOUNT_SID ? "✅ Present" : "❌ Missing"
       }
     });
     
