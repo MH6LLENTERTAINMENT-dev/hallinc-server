@@ -1,6 +1,8 @@
+
 {
-  "name": "hallinc-giftbit-server",
+  "name": "hallinc-sports-arena",
   "version": "1.0.0",
+  "description": "Sports Arena Backend with Blockchain Integration",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -10,11 +12,14 @@
     "cors": "^2.8.5",
     "body-parser": "^1.20.2",
     "dotenv": "^16.3.1"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["sports", "arena", "blockchain", "coinbase"],
+  "author": "HallInc",
+  "license": "MIT"
 }
-
-
-
   
   
 
