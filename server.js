@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const fetch = require("node-fetch");
+// REMOVE: const fetch = require("node-fetch"); - Node 18+ has built-in fetch
 require("dotenv").config();
 
 const app = express();
@@ -46,7 +46,8 @@ app.get("/", (req, res) => {
       ticketmaster: !!TICKETMASTER_API_KEY,
       impact: !!IMPACT_API_KEY
     },
-    pricing: "1000 coins = $1 USD"
+    pricing: "1000 coins = $1 USD",
+    status: "🟢 Running on Render"
   });
 });
 
@@ -58,18 +59,28 @@ app.get("/test/ticketmaster", async (req, res) => {
     const response = await fetch(
       `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`
     );
-    res.json({ ok: response.ok, status: response.status });
+    const data = await response.json();
+    res.json({ 
+      ok: response.ok, 
+      status: response.status,
+      events: data._embedded?.events || [] 
+    });
   } catch (error) {
-    res.json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
 app.get("/test/coinbase", async (req, res) => {
   try {
     const response = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
-    res.json({ ok: response.ok, status: response.status });
+    const data = await response.json();
+    res.json({ 
+      ok: response.ok, 
+      status: response.status,
+      data: data 
+    });
   } catch (error) {
-    res.json({ error: error.message });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -86,12 +97,15 @@ app.post("/paypal/create-order", async (req, res) => {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        Authorization:
-          "Basic " +
-          Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
+        Authorization: "Basic " + Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
       },
       body: "grant_type=client_credentials",
     });
+    
+    if (!tokenResponse.ok) {
+      throw new Error(`PayPal auth failed: ${tokenResponse.status}`);
+    }
+    
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
@@ -113,14 +127,19 @@ app.post("/paypal/create-order", async (req, res) => {
     });
 
     const orderData = await orderResponse.json();
+    
+    if (!orderResponse.ok) {
+      throw new Error(`PayPal order failed: ${JSON.stringify(orderData)}`);
+    }
+    
     res.json({
       success: true,
       orderId: orderData.id,
       approvalUrl: orderData.links?.find((link) => link.rel === "approve")?.href,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "PayPal order creation failed" });
+    console.error("PayPal Error:", err);
+    res.status(500).json({ error: "PayPal order creation failed: " + err.message });
   }
 });
 
@@ -187,9 +206,20 @@ app.post("/api/redeem/lasso", (req, res) => {
 });
 
 // ================================
-// ✅ SERVER START
+// 🔧 HEALTH CHECK
 // ================================
-app.listen(PORT, () => {
-  console.log(`✅ HallInc Server running on port ${PORT}`);
+app.get("/health", (req, res) => {
+  res.json({ 
+    status: "🟢 Healthy", 
+    timestamp: new Date().toISOString(),
+    port: PORT 
+  });
 });
 
+// ================================
+// ✅ SERVER START
+// ================================
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ HallInc Server running on port ${PORT}`);
+  console.log(`🔗 Health check: https://your-app-name.onrender.com/health`);
+});
