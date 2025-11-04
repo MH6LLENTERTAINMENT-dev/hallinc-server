@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const fetch = require("node-fetch");
 require("dotenv").config();
 
 const app = express();
@@ -9,13 +10,19 @@ app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
 
-// API Keys
+// ================================
+// 🔐 API KEYS
+// ================================
 const TICKETMASTER_API_KEY = process.env.TICKETMASTER_API_KEY;
 const COINBASE_API_KEY = process.env.COINBASE_API_KEY;
 const IMPACT_API_KEY = process.env.IMPACT_API_KEY;
 const IMPACT_ACCOUNT_SID = process.env.IMPACT_ACCOUNT_SID;
+const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
+const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 
-// 🎯 REALISTIC PRICING SYSTEM
+// ================================
+// 💰 COIN SYSTEM SETTINGS
+// ================================
 const COIN_RATE = 1000; // 1000 coins = $1 USD
 const PLATFORM_FEE = 0.1; // 10% platform fee
 
@@ -27,392 +34,162 @@ function calculateUSDValue(coins) {
   return (coins / COIN_RATE).toFixed(2);
 }
 
-// Main route
+// ================================
+// 🌍 MAIN ROUTE
+// ================================
 app.get("/", (req, res) => {
-  res.json({ 
-    message: "🎉 HallInc Server with REAL LIVE APIs!",
-    status: "Coinbase, Ticketmaster, Impact, Lasso - LIVE & READY!",
+  res.json({
+    message: "🎉 HallInc Server Live!",
+    integrations: {
+      coinbase: !!COINBASE_API_KEY,
+      paypal: !!PAYPAL_CLIENT_ID,
+      ticketmaster: !!TICKETMASTER_API_KEY,
+      impact: !!IMPACT_API_KEY
+    },
     pricing: "1000 coins = $1 USD"
   });
 });
 
-// =============================================
+// ================================
 // 🧪 TEST ENDPOINTS
-// =============================================
-
-// Ticketmaster Test
+// ================================
 app.get("/test/ticketmaster", async (req, res) => {
   try {
-    const response = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`);
-    res.json({
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    });
+    const response = await fetch(
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`
+    );
+    res.json({ ok: response.ok, status: response.status });
   } catch (error) {
     res.json({ error: error.message });
   }
 });
 
-// Coinbase Test
 app.get("/test/coinbase", async (req, res) => {
   try {
-    const response = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
-    res.json({
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
-    });
+    const response = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+    res.json({ ok: response.ok, status: response.status });
   } catch (error) {
     res.json({ error: error.message });
   }
 });
 
-// Impact.com Test - FIXED BASIC AUTH
-app.get("/test/impact", async (req, res) => {
+// ================================
+// 💳 PAYPAL PAYMENT ENDPOINT
+// ================================
+app.post("/paypal/create-order", async (req, res) => {
+  const { amount } = req.body;
+  if (!amount) return res.status(400).json({ error: "Missing amount" });
+
   try {
-    const response = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1', {
+    // 1️⃣ Get OAuth access token
+    const tokenResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
+      method: "POST",
       headers: {
-        'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
-        'Accept': 'application/json'
-      }
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization:
+          "Basic " +
+          Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
+      },
+      body: "grant_type=client_credentials",
     });
-    
-    res.json({
-      status: response.status,
-      statusText: response.statusText,
-      ok: response.ok
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    // 2️⃣ Create PayPal order
+    const orderResponse = await fetch("https://api-m.paypal.com/v2/checkout/orders", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            amount: { currency_code: "USD", value: amount.toString() },
+          },
+        ],
+      }),
     });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
 
-// =============================================
-// 📊 PRICE CHART SYSTEM
-// =============================================
-
-app.get("/api/reward-prices", (req, res) => {
-  const rewardChart = {
-    coinRate: "1,000 coins = $1 USD",
-    platformFee: "10% service fee included",
-    
-    ticketmaster: [
-      { price: 25, coins: calculateCoinsNeeded(25), description: "Budget Seat" },
-      { price: 50, coins: calculateCoinsNeeded(50), description: "Standard Seat" },
-      { price: 75, coins: calculateCoinsNeeded(75), description: "Premium Seat" },
-      { price: 100, coins: calculateCoinsNeeded(100), description: "VIP Seat" }
-    ],
-    
-    lasso: [
-      { brand: "Nike", price: 25, coins: calculateCoinsNeeded(25) },
-      { brand: "Starbucks", price: 10, coins: calculateCoinsNeeded(10) },
-      { brand: "Netflix", price: 15, coins: calculateCoinsNeeded(15) },
-      { brand: "DoorDash", price: 20, coins: calculateCoinsNeeded(20) }
-    ],
-    
-    crypto: [
-      { amount: "0.001", coins: calculateCoinsNeeded(40), crypto: "BTC", approxValue: "$40" },
-      { amount: "0.01", coins: calculateCoinsNeeded(30), crypto: "ETH", approxValue: "$30" },
-      { amount: "25", coins: calculateCoinsNeeded(25), crypto: "USDC", approxValue: "$25" }
-    ]
-  };
-  
-  res.json(rewardChart);
-});
-
-// =============================================
-// 💰 AD REWARDS & COIN PURCHASES
-// =============================================
-
-// Add Coins from Ads
-app.post("/api/add-coins", async (req, res) => {
-  try {
-    const { userId, coins, source = 'unknown' } = req.body;
-    
-    if (!userId || !coins) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Missing userId or coins" 
-      });
-    }
-    
-    const newBalance = Math.floor(Math.random() * 50000) + 10000;
-    
-    console.log(`💰 Added ${coins} coins to user ${userId} from ${source}`);
-    
+    const orderData = await orderResponse.json();
     res.json({
       success: true,
-      coinsEarned: coins,
-      newBalance: newBalance,
-      usdValue: calculateUSDValue(newBalance),
-      message: `Successfully added ${coins} coins!`
+      orderId: orderData.id,
+      approvalUrl: orderData.links?.find((link) => link.rel === "approve")?.href,
     });
-    
   } catch (err) {
-    res.status(500).json({ 
-      success: false, 
-      error: 'Failed to add coins' 
-    });
+    console.error(err);
+    res.status(500).json({ error: "PayPal order creation failed" });
   }
 });
 
-// Coinbase Purchases
+// ================================
+// 💰 COIN PURCHASES (COINBASE SIM)
+// ================================
 app.post("/coinbase-charge", async (req, res) => {
-  try {
-    const { userId, amount, currency = 'USD' } = req.body;
-    
-    if (!userId || !amount) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Missing userId or amount" 
-      });
-    }
-    
-    const coinsEarned = amount * COIN_RATE;
-    
-    const simulatedCharge = {
-      id: 'sim_charge_' + Math.random().toString(36).substr(2, 9),
-      hosted_url: 'https://hall-inc-sports-arena-942ab85a.base44.app/success',
-      amount: amount,
-      currency: currency,
-      coinsEarned: coinsEarned,
-      status: 'created'
-    };
-    
-    res.json({
-      success: true,
-      message: `Purchase ${coinsEarned.toLocaleString()} coins for $${amount}`,
-      charge: simulatedCharge,
-      coinsEarned: coinsEarned,
-      paymentUrl: simulatedCharge.hosted_url
-    });
-    
-  } catch (err) {
-    res.status(500).json({ 
-      success: false, 
-      error: 'Payment processing failed' 
-    });
-  }
+  const { userId, amount } = req.body;
+  if (!userId || !amount)
+    return res.status(400).json({ error: "Missing userId or amount" });
+
+  const coinsEarned = amount * COIN_RATE;
+  res.json({
+    success: true,
+    message: `Purchase ${coinsEarned.toLocaleString()} coins for $${amount}`,
+    coinsEarned,
+    paymentUrl: "https://www.coinbase.com/checkout",
+  });
 });
 
-// =============================================
-// 🎁 REWARD REDEMPTION
-// =============================================
-
-// 🎫 TICKETMASTER TICKET REDEMPTION
+// ================================
+// 🎟️ TICKETMASTER REDEMPTION
+// ================================
 app.post("/api/redeem/tickets", async (req, res) => {
-  try {
-    const { userId, userEmail, eventId, eventName, ticketPrice = 50 } = req.body;
-    
-    if (!userEmail || !eventId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Missing userEmail or eventId" 
-      });
-    }
-    
-    const coinsNeeded = calculateCoinsNeeded(ticketPrice);
-    
-    if (TICKETMASTER_API_KEY) {
-      try {
-        const response = await fetch(`https://app.ticketmaster.com/discovery/v2/events/${eventId}.json?apikey=${TICKETMASTER_API_KEY}`);
-        
-        if (response.ok) {
-          const eventData = await response.json();
-          
-          const ticket = {
-            id: 'tkt_' + Math.random().toString(36).substr(2, 9),
-            userId: userId,
-            userEmail: userEmail,
-            eventId: eventId,
-            eventName: eventData.name || eventName,
-            ticketPrice: ticketPrice,
-            coinsNeeded: coinsNeeded,
-            status: 'reserved',
-            timestamp: new Date().toISOString()
-          };
-          
-          return res.json({
-            success: true,
-            message: `🎉 Reserved $${ticketPrice} ticket for ${coinsNeeded.toLocaleString()} coins!`,
-            ticket: ticket
-          });
-        }
-      } catch (apiError) {
-        console.log('Ticketmaster API failed:', apiError.message);
-      }
-    }
-    
-    // Fallback
-    const ticket = {
-      id: 'tkt_' + Math.random().toString(36).substr(2, 9),
-      userId: userId || `user_${Date.now()}`,
-      userEmail: userEmail,
-      eventName: eventName || 'Sports Event',
-      ticketPrice: ticketPrice,
-      coinsNeeded: coinsNeeded,
-      status: 'reserved',
-      timestamp: new Date().toISOString()
-    };
-    
-    res.json({
-      success: true,
-      message: `🎉 Reserved $${ticketPrice} ${eventName} ticket for ${coinsNeeded.toLocaleString()} coins!`,
-      ticket: ticket
-    });
-    
-  } catch (err) {
-    res.status(500).json({ error: 'Ticket redemption failed' });
-  }
+  const { userEmail, eventId, eventName, ticketPrice = 50 } = req.body;
+  if (!userEmail || !eventId)
+    return res.status(400).json({ error: "Missing userEmail or eventId" });
+
+  const coinsNeeded = calculateCoinsNeeded(ticketPrice);
+  res.json({
+    success: true,
+    message: `🎟️ Reserved ${eventName} ticket for ${coinsNeeded} coins!`,
+    ticket: {
+      id: "tkt_" + Math.random().toString(36).substr(2, 9),
+      eventName,
+      ticketPrice,
+      coinsNeeded,
+      userEmail,
+    },
+  });
 });
 
-// ₿ COINBASE CRYPTO REDEMPTION
-app.post("/api/redeem/crypto", async (req, res) => {
-  try {
-    const { userId, cryptoAmount, cryptoType = 'USDC', walletAddress } = req.body;
-    
-    if (!userId || !cryptoAmount || !walletAddress) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Missing userId, cryptoAmount, or walletAddress" 
-      });
-    }
-    
-    const cryptoValues = {
-      'BTC': 40000,
-      'ETH': 3000,
-      'USDC': 1
-    };
-    
-    const usdValue = cryptoAmount * (cryptoValues[cryptoType] || 1);
-    const coinsNeeded = calculateCoinsNeeded(usdValue);
-    
-    const transaction = {
-      id: 'tx_' + Math.random().toString(36).substr(2, 9),
-      userId: userId,
-      cryptoAmount: cryptoAmount,
-      cryptoType: cryptoType,
-      usdValue: usdValue.toFixed(2),
-      coinsNeeded: coinsNeeded,
-      walletAddress: walletAddress,
-      timestamp: new Date().toISOString(),
-      status: 'completed'
-    };
-    
-    res.json({
-      success: true,
-      message: `₿ Converted ${coinsNeeded.toLocaleString()} coins to ${cryptoAmount} ${cryptoType}!`,
-      transaction: transaction
-    });
-    
-  } catch (err) {
-    res.status(500).json({ error: 'Crypto conversion failed' });
-  }
+// ================================
+// 🎁 LASSO / GIFT CARD REWARDS
+// ================================
+app.post("/api/redeem/lasso", (req, res) => {
+  const { userEmail, brand, giftCardAmount } = req.body;
+  if (!userEmail || !brand || !giftCardAmount)
+    return res.status(400).json({ error: "Missing brand or amount" });
+
+  const coinsNeeded = calculateCoinsNeeded(giftCardAmount);
+  res.json({
+    success: true,
+    message: `🎁 Ordered $${giftCardAmount} ${brand} card for ${coinsNeeded} coins.`,
+    reward: {
+      id: "lasso_" + Date.now(),
+      brand,
+      giftCardAmount,
+      coinsNeeded,
+      userEmail,
+      status: "processing",
+    },
+  });
 });
 
-// 🎁 LASSO MARKETPLACE REWARDS
-app.post("/api/redeem/lasso", async (req, res) => {
-  try {
-    const { userId, userEmail, brand, giftCardAmount } = req.body;
-    
-    const validAmounts = [5, 10, 15, 20, 25, 50, 100];
-    if (!validAmounts.includes(giftCardAmount)) {
-      return res.status(400).json({ 
-        success: false, 
-        error: `Invalid amount. Choose: $${validAmounts.join(', $')}` 
-      });
-    }
-    
-    const coinsNeeded = calculateCoinsNeeded(giftCardAmount);
-    
-    const reward = {
-      id: 'lasso_' + Date.now(),
-      userEmail: userEmail,
-      brand: brand,
-      giftCardAmount: giftCardAmount,
-      coinsNeeded: coinsNeeded,
-      status: 'processing',
-      timestamp: new Date().toISOString()
-    };
-    
-    res.json({
-      success: true,
-      message: `🎉 Ordered $${giftCardAmount} ${brand} gift card for ${coinsNeeded.toLocaleString()} coins!`,
-      reward: reward,
-      deliveryNote: "Gift card will be processed within 24 hours"
-    });
-    
-  } catch (err) {
-    res.status(500).json({ error: 'Reward processing failed' });
-  }
+// ================================
+// ✅ SERVER START
+// ================================
+app.listen(PORT, () => {
+  console.log(`✅ HallInc Server running on port ${PORT}`);
 });
 
-// =============================================
-// 🧪 TEST ALL APIS
-// =============================================
-
-app.get("/test-apis", async (req, res) => {
-  try {
-    const results = {};
-    
-    // Test Ticketmaster
-    try {
-      const tmResponse = await fetch(`https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`);
-      results.ticketmaster = {
-        status: tmResponse.status,
-        statusText: tmResponse.statusText,
-        ok: tmResponse.ok
-      };
-    } catch (tmError) {
-      results.ticketmaster = { error: tmError.message, ok: false };
-    }
-    
-    // Test Coinbase
-    try {
-      const cbResponse = await fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot');
-      results.coinbase = {
-        status: cbResponse.status,
-        statusText: cbResponse.statusText,
-        ok: cbResponse.ok
-      };
-    } catch (cbError) {
-      results.coinbase = { error: cbError.message, ok: false };
-    }
-    
-    // Test Impact.com - FIXED BASIC AUTH
-    try {
-      const impactResponse = await fetch('https://api.impact.com/Mediapartners/IRh5XRkZscod6616141nd7eYdwUGUiGdZ1', {
-        headers: {
-          'Authorization': `Basic ${Buffer.from(IMPACT_ACCOUNT_SID + ':' + IMPACT_API_KEY).toString('base64')}`,
-          'Accept': 'application/json'
-        }
-      });
-      results.impact = {
-        status: impactResponse.status,
-        statusText: impactResponse.statusText,
-        ok: impactResponse.ok
-      };
-    } catch (impactError) {
-      results.impact = { error: impactError.message, ok: false };
-    }
-    
-    res.json({
-      message: "API Test Results",
-      pricing: "1000 coins = $1 USD",
-      results: results,
-      keys: {
-        ticketmaster: TICKETMASTER_API_KEY ? "✅ Present" : "❌ Missing",
-        coinbase: COINBASE_API_KEY ? "✅ Present" : "❌ Missing",
-        impact: IMPACT_API_KEY ? "✅ Present" : "❌ Missing",
-        impact_sid: IMPACT_ACCOUNT_SID ? "✅ Present" : "❌ Missing"
-      }
-    });
-    
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Start Server
-app.listen(PORT, () => console.log(`✅ HallInc Server running on port ${PORT}`));
