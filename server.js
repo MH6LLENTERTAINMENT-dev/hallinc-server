@@ -6,7 +6,6 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 require("dotenv").config();
-const axios = require("axios");
 
 const app = express();
 app.use(cors());
@@ -34,6 +33,7 @@ const PLATFORM_FEE = 0.1; // 10% platform fee
 function calculateCoinsNeeded(usdAmount) {
   return Math.ceil(usdAmount * COIN_RATE * (1 + PLATFORM_FEE));
 }
+
 function calculateUSDValue(coins) {
   return (coins / COIN_RATE).toFixed(2);
 }
@@ -57,18 +57,34 @@ app.get("/", (req, res) => {
 });
 
 // ================================
+// 🏥 HEALTH CHECK
+// ================================
+app.get("/health", (req, res) => {
+  res.json({
+    status: "🟢 Healthy",
+    timestamp: new Date().toISOString(),
+    port: PORT,
+    environment: process.env.NODE_ENV || "development"
+  });
+});
+
+// ================================
 // 🧪 TEST ENDPOINTS
 // ================================
 app.get("/test/ticketmaster", async (req, res) => {
+  if (!TICKETMASTER_API_KEY) {
+    return res.status(400).json({ error: "Ticketmaster API key not configured" });
+  }
+  
   try {
     const response = await fetch(
       `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`
     );
     const data = await response.json();
-    res.json({
-      ok: response.ok,
+    res.json({ 
+      ok: response.ok, 
       status: response.status,
-      events: data._embedded?.events || [],
+      events: data._embedded?.events || [] 
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -79,10 +95,10 @@ app.get("/test/coinbase", async (req, res) => {
   try {
     const response = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
     const data = await response.json();
-    res.json({
-      ok: response.ok,
+    res.json({ 
+      ok: response.ok, 
       status: response.status,
-      data: data,
+      data: data 
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -96,22 +112,30 @@ app.post("/paypal/create-order", async (req, res) => {
   const { amount } = req.body;
   if (!amount) return res.status(400).json({ error: "Missing amount" });
 
+  // Check if PayPal credentials are configured
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
+    return res.status(500).json({ error: "PayPal credentials not configured" });
+  }
+
   try {
+    // 1️⃣ Get OAuth access token
     const tokenResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        Authorization:
-          "Basic " +
-          Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
+        Authorization: "Basic " + Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
       },
       body: "grant_type=client_credentials",
     });
-
-    if (!tokenResponse.ok) throw new Error(`PayPal auth failed: ${tokenResponse.status}`);
+    
+    if (!tokenResponse.ok) {
+      throw new Error(`PayPal auth failed: ${tokenResponse.status}`);
+    }
+    
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
+    // 2️⃣ Create PayPal order
     const orderResponse = await fetch("https://api-m.paypal.com/v2/checkout/orders", {
       method: "POST",
       headers: {
@@ -120,14 +144,20 @@ app.post("/paypal/create-order", async (req, res) => {
       },
       body: JSON.stringify({
         intent: "CAPTURE",
-        purchase_units: [{ amount: { currency_code: "USD", value: amount.toString() } }],
+        purchase_units: [
+          {
+            amount: { currency_code: "USD", value: amount.toString() },
+          },
+        ],
       }),
     });
 
     const orderData = await orderResponse.json();
-    if (!orderResponse.ok)
+    
+    if (!orderResponse.ok) {
       throw new Error(`PayPal order failed: ${JSON.stringify(orderData)}`);
-
+    }
+    
     res.json({
       success: true,
       orderId: orderData.id,
@@ -144,8 +174,9 @@ app.post("/paypal/create-order", async (req, res) => {
 // ================================
 app.post("/coinbase-charge", async (req, res) => {
   const { userId, amount } = req.body;
-  if (!userId || !amount)
+  if (!userId || !amount) {
     return res.status(400).json({ error: "Missing userId or amount" });
+  }
 
   const coinsEarned = amount * COIN_RATE;
   res.json({
@@ -153,6 +184,7 @@ app.post("/coinbase-charge", async (req, res) => {
     message: `Purchase ${coinsEarned.toLocaleString()} coins for $${amount}`,
     coinsEarned,
     paymentUrl: "https://www.coinbase.com/checkout",
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -161,15 +193,16 @@ app.post("/coinbase-charge", async (req, res) => {
 // ================================
 app.post("/api/redeem/tickets", async (req, res) => {
   const { userEmail, eventId, eventName, ticketPrice = 50 } = req.body;
-  if (!userEmail || !eventId)
+  if (!userEmail || !eventId) {
     return res.status(400).json({ error: "Missing userEmail or eventId" });
+  }
 
   const coinsNeeded = calculateCoinsNeeded(ticketPrice);
   res.json({
     success: true,
     message: `🎟️ Reserved ${eventName} ticket for ${coinsNeeded} coins!`,
     ticket: {
-      id: "tkt_" + Math.random().toString(36).substr(2, 9),
+      id: "tkt_" + Math.random().toString(36).substring(2, 11),
       eventName,
       ticketPrice,
       coinsNeeded,
@@ -183,8 +216,9 @@ app.post("/api/redeem/tickets", async (req, res) => {
 // ================================
 app.post("/api/redeem/lasso", (req, res) => {
   const { userEmail, brand, giftCardAmount } = req.body;
-  if (!userEmail || !brand || !giftCardAmount)
-    return res.status(400).json({ error: "Missing brand or amount" });
+  if (!userEmail || !brand || !giftCardAmount) {
+    return res.status(400).json({ error: "Missing userEmail, brand, or amount" });
+  }
 
   const coinsNeeded = calculateCoinsNeeded(giftCardAmount);
   res.json({
@@ -202,7 +236,7 @@ app.post("/api/redeem/lasso", (req, res) => {
 });
 
 // ================================
-// 🏈 API-SPORTS INTEGRATION
+// 🏈 API-SPORTS INTEGRATION (USING NATIVE FETCH)
 // ================================
 
 // Base URLs for each sport
@@ -224,11 +258,18 @@ app.get("/sports/:league/:date", async (req, res) => {
   if (!apiUrl) return res.status(400).json({ error: "Unsupported league" });
 
   try {
-    const response = await axios.get(`${apiUrl}?date=${date}`, {
+    // Using native fetch instead of axios
+    const response = await fetch(`${apiUrl}?date=${date}`, {
       headers: { "x-apisports-key": API_SPORTS_KEY },
     });
 
-    const games = response.data.response?.map((game) => ({
+    if (!response.ok) {
+      throw new Error(`API-Sports error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    const games = data.response?.map((game) => ({
       id: game.id || game.game?.id,
       date: game.date || game.datetime,
       league: league.toUpperCase(),
@@ -253,20 +294,65 @@ app.get("/sports/:league/:date", async (req, res) => {
 });
 
 // ================================
-// 🔧 HEALTH CHECK
+// 🎬 AD REWARDS SYSTEM
 // ================================
-app.get("/health", (req, res) => {
+let userBalances = {}; // In production, use database
+
+app.post("/api/reward-ad", async (req, res) => {
+  const { userId, adType = "video" } = req.body;
+  
+  if (!userId) {
+    return res.status(400).json({ error: "User ID required" });
+  }
+
+  // Coin rewards based on ad type
+  const rewards = {
+    video: 1000,
+    banner: 100,
+    interstitial: 500
+  };
+
+  const coinsEarned = rewards[adType] || 500;
+  
+  // Initialize user balance if doesn't exist
+  if (!userBalances[userId]) {
+    userBalances[userId] = 0;
+  }
+
+  // Update balance
+  userBalances[userId] += coinsEarned;
+
   res.json({
-    status: "🟢 Healthy",
-    timestamp: new Date().toISOString(),
-    port: PORT,
+    success: true,
+    coinsEarned,
+    newBalance: userBalances[userId],
+    message: `🎉 Earned ${coinsEarned} coins from watching ad!`,
+    adType
   });
 });
 
+app.get("/api/user-balance/:userId", (req, res) => {
+  const { userId } = req.params;
+  const balance = userBalances[userId] || 0;
+  
+  res.json({ userId, balance });
+});
+
 // ================================
-// ✅ SERVER START
+// ✅ SERVER START - CRITICAL FOR RENDER
 // ================================
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ HallInc Server running on port ${PORT}`);
-  console.log(`🔗 Health check: /health`);
+  console.log(`📍 Host: 0.0.0.0`);
+  console.log(`🔗 Health endpoint: /health`);
+  console.log(`🕒 Started at: ${new Date().toISOString()}`);
+});
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
