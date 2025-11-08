@@ -1,8 +1,12 @@
+// =========================================
+// 🌍 HallInc Sports Arena + API-Sports Server
+// =========================================
+
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-// REMOVE: const fetch = require("node-fetch"); - Node 18+ has built-in fetch
 require("dotenv").config();
+const axios = require("axios");
 
 const app = express();
 app.use(cors());
@@ -19,6 +23,7 @@ const IMPACT_API_KEY = process.env.IMPACT_API_KEY;
 const IMPACT_ACCOUNT_SID = process.env.IMPACT_ACCOUNT_SID;
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
+const API_SPORTS_KEY = process.env.API_SPORTS_KEY;
 
 // ================================
 // 💰 COIN SYSTEM SETTINGS
@@ -29,7 +34,6 @@ const PLATFORM_FEE = 0.1; // 10% platform fee
 function calculateCoinsNeeded(usdAmount) {
   return Math.ceil(usdAmount * COIN_RATE * (1 + PLATFORM_FEE));
 }
-
 function calculateUSDValue(coins) {
   return (coins / COIN_RATE).toFixed(2);
 }
@@ -44,10 +48,11 @@ app.get("/", (req, res) => {
       coinbase: !!COINBASE_API_KEY,
       paypal: !!PAYPAL_CLIENT_ID,
       ticketmaster: !!TICKETMASTER_API_KEY,
-      impact: !!IMPACT_API_KEY
+      impact: !!IMPACT_API_KEY,
+      apisports: !!API_SPORTS_KEY,
     },
     pricing: "1000 coins = $1 USD",
-    status: "🟢 Running on Render"
+    status: "🟢 Running on Render",
   });
 });
 
@@ -60,10 +65,10 @@ app.get("/test/ticketmaster", async (req, res) => {
       `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&size=1`
     );
     const data = await response.json();
-    res.json({ 
-      ok: response.ok, 
+    res.json({
+      ok: response.ok,
       status: response.status,
-      events: data._embedded?.events || [] 
+      events: data._embedded?.events || [],
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -74,10 +79,10 @@ app.get("/test/coinbase", async (req, res) => {
   try {
     const response = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot");
     const data = await response.json();
-    res.json({ 
-      ok: response.ok, 
+    res.json({
+      ok: response.ok,
       status: response.status,
-      data: data 
+      data: data,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -92,24 +97,21 @@ app.post("/paypal/create-order", async (req, res) => {
   if (!amount) return res.status(400).json({ error: "Missing amount" });
 
   try {
-    // 1️⃣ Get OAuth access token
     const tokenResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: "Basic " + Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
+        Authorization:
+          "Basic " +
+          Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`).toString("base64"),
       },
       body: "grant_type=client_credentials",
     });
-    
-    if (!tokenResponse.ok) {
-      throw new Error(`PayPal auth failed: ${tokenResponse.status}`);
-    }
-    
+
+    if (!tokenResponse.ok) throw new Error(`PayPal auth failed: ${tokenResponse.status}`);
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // 2️⃣ Create PayPal order
     const orderResponse = await fetch("https://api-m.paypal.com/v2/checkout/orders", {
       method: "POST",
       headers: {
@@ -118,20 +120,14 @@ app.post("/paypal/create-order", async (req, res) => {
       },
       body: JSON.stringify({
         intent: "CAPTURE",
-        purchase_units: [
-          {
-            amount: { currency_code: "USD", value: amount.toString() },
-          },
-        ],
+        purchase_units: [{ amount: { currency_code: "USD", value: amount.toString() } }],
       }),
     });
 
     const orderData = await orderResponse.json();
-    
-    if (!orderResponse.ok) {
+    if (!orderResponse.ok)
       throw new Error(`PayPal order failed: ${JSON.stringify(orderData)}`);
-    }
-    
+
     res.json({
       success: true,
       orderId: orderData.id,
@@ -206,13 +202,64 @@ app.post("/api/redeem/lasso", (req, res) => {
 });
 
 // ================================
+// 🏈 API-SPORTS INTEGRATION
+// ================================
+
+// Base URLs for each sport
+const leagueMap = {
+  nfl: "https://v1.american-football.api-sports.io/games",
+  ncaaf: "https://v1.american-football.api-sports.io/games",
+  nba: "https://v1.basketball.api-sports.io/games",
+  wnba: "https://v1.basketball.api-sports.io/games",
+  ncaaw: "https://v1.basketball.api-sports.io/games",
+  mlb: "https://v1.baseball.api-sports.io/games",
+  nhl: "https://v1.hockey.api-sports.io/games",
+};
+
+// Unified sports endpoint
+app.get("/sports/:league/:date", async (req, res) => {
+  const { league, date } = req.params;
+  const apiUrl = leagueMap[league.toLowerCase()];
+
+  if (!apiUrl) return res.status(400).json({ error: "Unsupported league" });
+
+  try {
+    const response = await axios.get(`${apiUrl}?date=${date}`, {
+      headers: { "x-apisports-key": API_SPORTS_KEY },
+    });
+
+    const games = response.data.response?.map((game) => ({
+      id: game.id || game.game?.id,
+      date: game.date || game.datetime,
+      league: league.toUpperCase(),
+      status: game.status?.long || game.status?.description || "Scheduled",
+      home: {
+        name: game.teams?.home?.name || "TBD",
+        logo: game.teams?.home?.logo || null,
+        score: game.scores?.home?.total ?? "-",
+      },
+      away: {
+        name: game.teams?.away?.name || "TBD",
+        logo: game.teams?.away?.logo || null,
+        score: game.scores?.away?.total ?? "-",
+      },
+    }));
+
+    res.json({ league, date, games });
+  } catch (err) {
+    console.error("API-Sports Error:", err.message);
+    res.status(500).json({ error: "Failed to fetch data from API-Sports" });
+  }
+});
+
+// ================================
 // 🔧 HEALTH CHECK
 // ================================
 app.get("/health", (req, res) => {
-  res.json({ 
-    status: "🟢 Healthy", 
+  res.json({
+    status: "🟢 Healthy",
     timestamp: new Date().toISOString(),
-    port: PORT 
+    port: PORT,
   });
 });
 
@@ -221,5 +268,5 @@ app.get("/health", (req, res) => {
 // ================================
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ HallInc Server running on port ${PORT}`);
-  console.log(`🔗 Health check: https://your-app-name.onrender.com/health`);
+  console.log(`🔗 Health check: /health`);
 });
