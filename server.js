@@ -1,5 +1,5 @@
 // =========================================
-// 🌍 HallInc Sports Arena + API-Sports Server
+// 🌍 HallInc Sports Arena Server
 // =========================================
 
 const express = require("express");
@@ -8,7 +8,22 @@ const bodyParser = require("body-parser");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());
+
+// ================================
+// 🌐 CORS CONFIGURATION
+// ================================
+app.use(cors({
+  origin: [
+    'https://hallincsportsarena.base44.app',
+    'https://hall-inc-sports-arena-942ab85a.base44.app',
+    'http://localhost:3000',
+    '*'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
@@ -27,8 +42,8 @@ const API_SPORTS_KEY = process.env.API_SPORTS_KEY;
 // ================================
 // 💰 COIN SYSTEM SETTINGS
 // ================================
-const COIN_RATE = 1000; // 1000 coins = $1 USD
-const PLATFORM_FEE = 0.1; // 10% platform fee
+const COIN_RATE = 1000;
+const PLATFORM_FEE = 0.1;
 
 function calculateCoinsNeeded(usdAmount) {
   return Math.ceil(usdAmount * COIN_RATE * (1 + PLATFORM_FEE));
@@ -112,13 +127,11 @@ app.post("/paypal/create-order", async (req, res) => {
   const { amount } = req.body;
   if (!amount) return res.status(400).json({ error: "Missing amount" });
 
-  // Check if PayPal credentials are configured
   if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET) {
     return res.status(500).json({ error: "PayPal credentials not configured" });
   }
 
   try {
-    // 1️⃣ Get OAuth access token
     const tokenResponse = await fetch("https://api-m.paypal.com/v1/oauth2/token", {
       method: "POST",
       headers: {
@@ -135,7 +148,6 @@ app.post("/paypal/create-order", async (req, res) => {
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
 
-    // 2️⃣ Create PayPal order
     const orderResponse = await fetch("https://api-m.paypal.com/v2/checkout/orders", {
       method: "POST",
       headers: {
@@ -170,7 +182,7 @@ app.post("/paypal/create-order", async (req, res) => {
 });
 
 // ================================
-// 💰 COIN PURCHASES (COINBASE SIM)
+// 💰 COIN PURCHASES
 // ================================
 app.post("/coinbase-charge", async (req, res) => {
   const { userId, amount } = req.body;
@@ -212,7 +224,7 @@ app.post("/api/redeem/tickets", async (req, res) => {
 });
 
 // ================================
-// 🎁 LASSO / GIFT CARD REWARDS
+// 🎁 LASSO REWARDS
 // ================================
 app.post("/api/redeem/lasso", (req, res) => {
   const { userEmail, brand, giftCardAmount } = req.body;
@@ -236,21 +248,81 @@ app.post("/api/redeem/lasso", (req, res) => {
 });
 
 // ================================
-// 🏈 API-SPORTS INTEGRATION (USING NATIVE FETCH)
+// 🎲 SPORTS BETTING ODDS ENDPOINT
 // ================================
+app.get("/api/odds", async (req, res) => {
+  const { league = "NBA" } = req.query;
+  
+  try {
+    const simulatedOdds = generateSimulatedOdds(league);
+    
+    res.json({
+      success: true,
+      league: league.toUpperCase(),
+      lastUpdated: new Date().toISOString(),
+      games: simulatedOdds
+    });
+    
+  } catch (error) {
+    console.error("Odds API Error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch odds data"
+    });
+  }
+});
 
-// Base URLs for each sport
+function generateSimulatedOdds(league) {
+  const teams = {
+    NBA: ["Lakers", "Warriors", "Celtics", "Bucks", "Suns", "Nuggets", "76ers", "Heat"],
+    NFL: ["Chiefs", "Eagles", "49ers", "Bills", "Bengals", "Cowboys", "Ravens", "Dolphins"],
+    MLB: ["Yankees", "Dodgers", "Braves", "Astros", "Rays", "Mets", "Cardinals", "Blue Jays"]
+  };
+  
+  const leagueTeams = teams[league.toUpperCase()] || teams.NBA;
+  const games = [];
+  
+  for (let i = 0; i < 5; i++) {
+    const homeTeam = leagueTeams[Math.floor(Math.random() * leagueTeams.length)];
+    let awayTeam;
+    do {
+      awayTeam = leagueTeams[Math.floor(Math.random() * leagueTeams.length)];
+    } while (awayTeam === homeTeam);
+    
+    const homeOdds = Math.random() > 0.5 ? -110 - Math.floor(Math.random() * 50) : +110 + Math.floor(Math.random() * 100);
+    const awayOdds = homeOdds > 0 ? -homeOdds - 20 : Math.abs(homeOdds) + 20;
+    
+    games.push({
+      id: `game_${Date.now()}_${i}`,
+      homeTeam,
+      awayTeam,
+      commenceTime: new Date(Date.now() + Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
+      odds: {
+        home: homeOdds,
+        away: awayOdds
+      },
+      spread: {
+        home: Math.random() > 0.5 ? - (Math.random() * 10).toFixed(1) : "+" + (Math.random() * 10).toFixed(1)
+      },
+      overUnder: (Math.random() * 50 + 180).toFixed(1)
+    });
+  }
+  
+  return games;
+}
+
+// ================================
+// 🏈 API-SPORTS INTEGRATION
+// ================================
 const leagueMap = {
   nfl: "https://v1.american-football.api-sports.io/games",
   ncaaf: "https://v1.american-football.api-sports.io/games",
   nba: "https://v1.basketball.api-sports.io/games",
   wnba: "https://v1.basketball.api-sports.io/games",
-  ncaaw: "https://v1.basketball.api-sports.io/games",
   mlb: "https://v1.baseball.api-sports.io/games",
   nhl: "https://v1.hockey.api-sports.io/games",
 };
 
-// Unified sports endpoint
 app.get("/sports/:league/:date", async (req, res) => {
   const { league, date } = req.params;
   const apiUrl = leagueMap[league.toLowerCase()];
@@ -258,7 +330,6 @@ app.get("/sports/:league/:date", async (req, res) => {
   if (!apiUrl) return res.status(400).json({ error: "Unsupported league" });
 
   try {
-    // Using native fetch instead of axios
     const response = await fetch(`${apiUrl}?date=${date}`, {
       headers: { "x-apisports-key": API_SPORTS_KEY },
     });
@@ -296,7 +367,7 @@ app.get("/sports/:league/:date", async (req, res) => {
 // ================================
 // 🎬 AD REWARDS SYSTEM
 // ================================
-let userBalances = {}; // In production, use database
+let userBalances = {};
 
 app.post("/api/reward-ad", async (req, res) => {
   const { userId, adType = "video" } = req.body;
@@ -305,7 +376,6 @@ app.post("/api/reward-ad", async (req, res) => {
     return res.status(400).json({ error: "User ID required" });
   }
 
-  // Coin rewards based on ad type
   const rewards = {
     video: 1000,
     banner: 100,
@@ -314,12 +384,10 @@ app.post("/api/reward-ad", async (req, res) => {
 
   const coinsEarned = rewards[adType] || 500;
   
-  // Initialize user balance if doesn't exist
   if (!userBalances[userId]) {
     userBalances[userId] = 0;
   }
 
-  // Update balance
   userBalances[userId] += coinsEarned;
 
   res.json({
@@ -334,12 +402,11 @@ app.post("/api/reward-ad", async (req, res) => {
 app.get("/api/user-balance/:userId", (req, res) => {
   const { userId } = req.params;
   const balance = userBalances[userId] || 0;
-  
   res.json({ userId, balance });
 });
 
 // ================================
-// ✅ SERVER START - CRITICAL FOR RENDER
+// ✅ SERVER START
 // ================================
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ HallInc Server running on port ${PORT}`);
@@ -348,7 +415,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`🕒 Started at: ${new Date().toISOString()}`);
 });
 
-// Handle uncaught errors
+// Handle errors
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
 });
