@@ -10,20 +10,22 @@ require("dotenv").config();
 const app = express();
 
 // ================================
-// 🌐 CORS CONFIGURATION
+// 🌐 ENHANCED CORS CONFIGURATION
 // ================================
-app.use(cors({
-  origin: [
-    'https://hallincsportsarena.base44.app',
-    'https://hall-inc-sports-arena-942ab85a.base44.app',
-    'http://localhost:3000',
-    '*'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
-}));
+// Enable CORS for all origins
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
+app.use(cors());
 app.use(bodyParser.json());
 
 const PORT = process.env.PORT || 3000;
@@ -82,6 +84,99 @@ app.get("/health", (req, res) => {
     environment: process.env.NODE_ENV || "development"
   });
 });
+
+// ================================
+// 🎲 SPORTS BETTING ODDS ENDPOINT (FIXED FORMAT)
+// ================================
+app.get("/api/odds", async (req, res) => {
+  const { league = "NBA" } = req.query;
+  
+  try {
+    const games = generateSimulatedOdds(league);
+    
+    // Return exact format expected by frontend
+    res.json({
+      success: true,
+      games: games
+    });
+    
+  } catch (error) {
+    console.error("Odds API Error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch odds data"
+    });
+  }
+});
+
+function generateSimulatedOdds(league) {
+  const teams = {
+    NBA: [
+      { name: "Lakers", city: "Los Angeles" },
+      { name: "Warriors", city: "Golden State" },
+      { name: "Celtics", city: "Boston" },
+      { name: "Bucks", city: "Milwaukee" },
+      { name: "Suns", city: "Phoenix" },
+      { name: "Nuggets", city: "Denver" },
+      { name: "76ers", city: "Philadelphia" },
+      { name: "Heat", city: "Miami" }
+    ],
+    NFL: [
+      { name: "Chiefs", city: "Kansas City" },
+      { name: "Eagles", city: "Philadelphia" },
+      { name: "49ers", city: "San Francisco" },
+      { name: "Bills", city: "Buffalo" },
+      { name: "Bengals", city: "Cincinnati" },
+      { name: "Cowboys", city: "Dallas" },
+      { name: "Ravens", city: "Baltimore" },
+      { name: "Dolphins", city: "Miami" }
+    ],
+    MLB: [
+      { name: "Yankees", city: "New York" },
+      { name: "Dodgers", city: "Los Angeles" },
+      { name: "Braves", city: "Atlanta" },
+      { name: "Astros", city: "Houston" },
+      { name: "Rays", city: "Tampa Bay" },
+      { name: "Mets", city: "New York" },
+      { name: "Cardinals", city: "St. Louis" },
+      { name: "Blue Jays", city: "Toronto" }
+    ]
+  };
+  
+  const leagueTeams = teams[league.toUpperCase()] || teams.NBA;
+  const games = [];
+  
+  for (let i = 0; i < 6; i++) {
+    const homeIndex = Math.floor(Math.random() * leagueTeams.length);
+    let awayIndex;
+    do {
+      awayIndex = Math.floor(Math.random() * leagueTeams.length);
+    } while (awayIndex === homeIndex);
+    
+    const homeTeam = leagueTeams[homeIndex];
+    const awayTeam = leagueTeams[awayIndex];
+    
+    const homeOdds = Math.random() > 0.5 ? -150 - Math.floor(Math.random() * 100) : +130 + Math.floor(Math.random() * 100);
+    const awayOdds = homeOdds > 0 ? -homeOdds - 20 : Math.abs(homeOdds) + 20;
+    
+    // Generate random future date (next 1-7 days)
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + Math.floor(Math.random() * 7) + 1);
+    futureDate.setHours(19, 0, 0, 0); // Set to 7:00 PM
+    
+    games.push({
+      id: `game_${Date.now()}_${i}`,
+      home_team: `${homeTeam.city} ${homeTeam.name}`,
+      away_team: `${awayTeam.city} ${awayTeam.name}`,
+      home_odds: homeOdds,
+      away_odds: awayOdds,
+      status: "upcoming",
+      commence_time: futureDate.toISOString()
+    });
+  }
+  
+  return games;
+}
 
 // ================================
 // 🧪 TEST ENDPOINTS
@@ -248,70 +343,6 @@ app.post("/api/redeem/lasso", (req, res) => {
 });
 
 // ================================
-// 🎲 SPORTS BETTING ODDS ENDPOINT
-// ================================
-app.get("/api/odds", async (req, res) => {
-  const { league = "NBA" } = req.query;
-  
-  try {
-    const simulatedOdds = generateSimulatedOdds(league);
-    
-    res.json({
-      success: true,
-      league: league.toUpperCase(),
-      lastUpdated: new Date().toISOString(),
-      games: simulatedOdds
-    });
-    
-  } catch (error) {
-    console.error("Odds API Error:", error);
-    res.status(500).json({
-      success: false,
-      error: "Failed to fetch odds data"
-    });
-  }
-});
-
-function generateSimulatedOdds(league) {
-  const teams = {
-    NBA: ["Lakers", "Warriors", "Celtics", "Bucks", "Suns", "Nuggets", "76ers", "Heat"],
-    NFL: ["Chiefs", "Eagles", "49ers", "Bills", "Bengals", "Cowboys", "Ravens", "Dolphins"],
-    MLB: ["Yankees", "Dodgers", "Braves", "Astros", "Rays", "Mets", "Cardinals", "Blue Jays"]
-  };
-  
-  const leagueTeams = teams[league.toUpperCase()] || teams.NBA;
-  const games = [];
-  
-  for (let i = 0; i < 5; i++) {
-    const homeTeam = leagueTeams[Math.floor(Math.random() * leagueTeams.length)];
-    let awayTeam;
-    do {
-      awayTeam = leagueTeams[Math.floor(Math.random() * leagueTeams.length)];
-    } while (awayTeam === homeTeam);
-    
-    const homeOdds = Math.random() > 0.5 ? -110 - Math.floor(Math.random() * 50) : +110 + Math.floor(Math.random() * 100);
-    const awayOdds = homeOdds > 0 ? -homeOdds - 20 : Math.abs(homeOdds) + 20;
-    
-    games.push({
-      id: `game_${Date.now()}_${i}`,
-      homeTeam,
-      awayTeam,
-      commenceTime: new Date(Date.now() + Math.random() * 7 * 24 * 60 * 60 * 1000).toISOString(),
-      odds: {
-        home: homeOdds,
-        away: awayOdds
-      },
-      spread: {
-        home: Math.random() > 0.5 ? - (Math.random() * 10).toFixed(1) : "+" + (Math.random() * 10).toFixed(1)
-      },
-      overUnder: (Math.random() * 50 + 180).toFixed(1)
-    });
-  }
-  
-  return games;
-}
-
-// ================================
 // 🏈 API-SPORTS INTEGRATION
 // ================================
 const leagueMap = {
@@ -412,6 +443,7 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ HallInc Server running on port ${PORT}`);
   console.log(`📍 Host: 0.0.0.0`);
   console.log(`🔗 Health endpoint: /health`);
+  console.log(`🎲 Odds endpoint: /api/odds`);
   console.log(`🕒 Started at: ${new Date().toISOString()}`);
 });
 
